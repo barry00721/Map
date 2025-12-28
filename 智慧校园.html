@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>西南林业大学智慧校园地图</title>
+  
+  <style>
+    /* ===== 基础样式 ===== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      width: 100%;
+      height: 100%;
+      font-family: "Microsoft YaHei", Arial, sans-serif;
+      overflow: hidden;
+    }
+    
+    #container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    
+    /* ===== 加载动画 ===== */
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.95);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      transition: opacity 0.3s ease;
+    }
+    
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #009688;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* ===== 侧边栏 ===== */
+    .sidebar {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      width: 300px;
+      max-width: 90%;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      z-index: 10;
+      padding: 20px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    
+    .sidebar h3 {
+      color: #009688;
+      margin-bottom: 15px;
+      font-size: 18px;
+    }
+    
+    .spot-item {
+      padding: 10px 0;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .spot-item:hover {
+      background-color: #f9f9f9;
+    }
+    
+    .spot-item strong {
+      color: #333;
+      font-size: 14px;
+    }
+    
+    .spot-item p {
+      font-size: 12px;
+      color: #666;
+      margin: 4px 0 0 0;
+      line-height: 1.4;
+    }
+    
+    /* ===== 底部工具栏 ===== */
+    .route-tool {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 99;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 10px 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(5px);
+    }
+    
+    .route-btn {
+      padding: 8px 16px;
+      background: #009688;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+    
+    .route-btn:hover {
+      background: #00796b;
+      transform: translateY(-1px);
+    }
+    
+    .route-btn.active {
+      background: #005b52;
+      box-shadow: 0 2px 5px rgba(0, 91, 82, 0.3);
+    }
+    
+    .plan-switch-btn {
+      padding: 8px 16px;
+      background: #cccccc;
+      color: #333333;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+      font-weight: bold;
+    }
+    
+    .plan-switch-btn.open {
+      background: #009688;
+      color: #ffffff;
+    }
+    
+    .clear-btn {
+      padding: 8px 16px;
+      background: #ffffff;
+      color: #009688;
+      border: 1px solid #009688;
+      border-radius: 6px;
+      cursor: pointer;
+	font-size: 13px;
+      transition: all 0.2s;
+    }
+    
+    .clear-btn:hover {
+      background: #f0f9f8;
+    }
+    
+    /* ===== 路径规划提示框 核心优化：调整位置避免遮挡右侧插件 ===== */
+    .plan-tips {
+      position: absolute;
+      top: 20px;
+      left: 340px;
+      z-index: 98;
+      background: rgba(255, 255, 255, 0.95);
+      color: #333;
+      padding: 12px 18px;
+      border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+      font-size: 14px;
+      line-height: 1.6;
+      max-width: 360px;
+      border-left: 4px solid #009688;
+      backdrop-filter: blur(5px);
+      max-width: calc(100% - 360px);
+    }
+    
+    /* ===== 响应式设计 补充优化：小屏幕下提示框自适应 ===== */
+    @media (max-width: 1200px) {
+      .plan-tips {
+        left: 220px;
+        max-width: calc(100% - 240px);
+      }
+    }
+    
+    @media (max-width: 768px) {
+      .sidebar {
+        width: calc(100% - 40px);
+        max-height: 200px;
+      }
+      
+      .route-tool {
+        width: calc(100% - 40px);
+        justify-content: center;
+      }
+      
+      .plan-tips {
+        left: 50%;
+        top: 10px;
+        transform: translateX(-50%);
+        max-width: calc(100% - 40px);
+        font-size: 13px;
+        padding: 10px 14px;
+      }
+      
+      .route-btn,
+      .plan-switch-btn,
+      .clear-btn {
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .route-tool {
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+      }
+      
+      .route-btn,
+      .plan-switch-btn,
+      .clear-btn {
+        width: 100%;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- 加载遮罩 -->
+  <div id="loading" class="loading-overlay">
+    <div class="spinner"></div>
+    <p>正在加载校园地图...</p>
+  </div>
+
+  <!-- 路径规划状态提示 -->
+  <div class="plan-tips" id="planTips">
+    ✅ 路径规划功能已关闭，点击底部【开启路径规划】按钮即可使用路线规划
+  </div>
+  
+  <!-- 侧边栏 -->
+  <div class="sidebar" id="sidebar">
+    <h3>西南林业大学智慧校园</h3>
+    <p id="campus-intro"></p>
+    <div id="spot-list" style="margin-top: 15px;"></div>
+  </div>
+  
+  <!-- 地图容器 -->
+  <div id="container"></div>
+
+  <!-- 底部工具栏 ✅【核心修改】步行和驾驶按钮位置调换 顺序：驾车 → 骑行 → 步行 -->
+  <div class="route-tool">
+    <button class="plan-switch-btn" id="planSwitch">开启路径规划</button>
+    <button class="route-btn active" data-type="drive">驾车</button>
+    <button class="route-btn" data-type="ride">骑行</button>
+    <button class="route-btn" data-type="walk">步行</button>
+    <button class="clear-btn" id="clearRoute">清空路线</button>
+  </div>
+
+  <!-- 高德地图安全配置 -->
+  <script type="text/javascript">
+    window._AMapSecurityConfig = {
+      securityJsCode: "50f177b3ea427e38fc9eaa98d293d074"
+    };
+  </script>
+  
+  <!-- 高德地图API -->
+  <script src="https://webapi.amap.com/loader.js"></script>
+  
+  <!-- 主应用脚本 -->
+  <script type="text/javascript">
+    const CONFIG = {
+      amapKey: "1449516df803bfda88c3e70143b5164a",
+      campus: {
+        name: "西南林业大学（校本部）",
+        center: [102.741568, 25.071623],
+        zoom: 17,
+        pitch: 45,
+        rotation: 10,
+        intro: `西南林业大学（校本部）位于云南省昆明市盘龙区白龙寺300号，是一所以林学为特色的省属重点大学。校园占地约1238亩，拥有多栋教学楼、食堂、图书馆、体育馆、实验楼等完善的教学与生活设施，绿植覆盖率达80%以上，环境清幽。`,
+        spots: [
+          { id: 1, position: [102.740286, 25.072815], name: "教学主楼", type: "academic", desc: "全校核心教学地标，承担主要理论课程教学", fullDesc: `📌 教学主楼【核心教学楼】\n全校核心教学建筑，共12层，承担全校各院系公共必修课、专业理论课教学任务，是校内规模最大的教学楼。\n✅ 配套：86间多媒体教室、3个阶梯报告厅、每层设自习区与直饮水点，一楼设教务服务中心。\n💡 贴士：早晚自习高峰座位紧张，期末开放至22:30，电梯分单双层运行效率更高。` },
+          { id: 2, position: [102.739124, 25.073126], name: "第一教学楼", type: "academic", desc: "基础学科教学楼，以文理课程为主", fullDesc: `📌 第一教学楼【基础学科楼】\n校内基础课程核心教学楼，共6层，主要承担高数、英语、计算机、思政等公共基础课程教学。\n✅ 配套：标准化教室42间，全部配备多媒体设备与空调，一楼设打印店与饮水区。\n💡 贴士：教室分布集中，上课高峰期人流量大，建议提前5分钟到达。` },
+          { id: 3, position: [102.742157, 25.073568], name: "第二教学楼", type: "academic", desc: "专业教学楼，以林学、园林相关课程为主", fullDesc: `📌 第二教学楼【林学专业楼】\n贴合学校特色的专业教学楼，共7层，主要承担林学、园林、生态学、水土保持等专业课教学。\n✅ 配套：专业多媒体教室、小型研讨室、课程设计教室，部分教室配备专业实验设备。\n💡 贴士：离实验楼较近，专业课实验可就近上课，自习区较少建议去图书馆。` },
+          { id: 4, position: [102.743521, 25.071896], name: "第三教学楼", type: "academic", desc: "综合教学楼，以经管、文法类课程为主", fullDesc: `📌 第三教学楼【综合文科楼】\n校内文科类综合教学楼，共5层，主要承担经管、文法、外语、艺术类课程教学。\n✅ 配套：多媒体教室35间，语音教室6间，画室2间，环境安静适合文科学习。\n💡 贴士：离北苑食堂近，下课就餐方便，自习座位充足适合日常自习。` },
+          { id: 5, position: [102.738569, 25.070258], name: "实训教学楼", type: "academic", desc: "实践教学为主，含机房、实训教室", fullDesc: `📌 实训教学楼【实践教学楼】\n校内实践课程核心楼，共8层，主要承担计算机实训、测绘实训、专业软件操作等实践课程。\n✅ 配套：计算机机房6间、测绘实训室3间、电工电子实训室2间，设备定期更新。\n💡 贴士：上机课需提前预约机位，实训课程较多，建议带U盘存储作业。` },
+          { id: 6, position: [102.742891, 25.070582], name: "主图书馆", type: "library", desc: "校内核心图书馆，馆藏百万册各类图书文献", fullDesc: `📌 主图书馆【核心馆藏馆】\n云南省林业类文献最齐全的图书馆，总建筑面积1.8万㎡，馆藏纸质图书130余万册，电子文献200余万篇，主打林学特色馆藏。\n✅ 配套：借阅大厅、图书阅览区、考研自习区、电子阅览室、学术研讨室，支持校园卡借阅与线上预约。\n💡 贴士：需刷卡入馆，考研座位提前预约，周五下午闭馆整理，日常闭馆时间22:00。` },
+          { id: 7, position: [102.741856, 25.072135], name: "林业专业分馆", type: "library", desc: "林学专业特色图书馆，馆藏专业文献资料", fullDesc: `📌 林业专业分馆【特色馆藏馆】\n校内林学专业专属图书馆，共3层，馆藏林业、园林、森保、木材科学等专业图书与文献，是专业课学习的核心阵地。\n✅ 配套：专业阅览区、文献检索室、标本展示区，馆藏珍稀林木标本超千份，可查阅专业外文文献。\n💡 贴士：人流量较少，专业资料齐全，适合专业课复习与论文查阅，开放时间8:00-21:00。` },
+          { id: 8, position: [102.739876, 25.070129], name: "南苑学生食堂", type: "dining", desc: "校内核心食堂，菜品丰富，性价比高", fullDesc: `📌 南苑学生食堂【核心餐饮中心】\n校本部最大食堂，共3层可容纳2000余人就餐，菜品兼顾南北口味与云南民族特色，是师生就餐首选。\n✅ 配套：1楼大众快餐、2楼特色风味、3楼聚餐套餐，支持校园卡与移动支付，餐具每日消毒。\n💡 贴士：午餐高峰11:30-12:30，晚餐17:30-18:30，3楼环境好错峰就餐体验更佳。` },
+          { id: 9, position: [102.743258, 25.073269], name: "北苑食堂", type: "dining", desc: "风味食堂，主打特色小吃与地方美食", fullDesc: `📌 北苑食堂【特色风味食堂】\n校内特色小吃食堂，共2层，主打云南米线、面条、炒饭、炸鸡汉堡、麻辣香锅等特色美食，口味多样。\n✅ 配套：特色窗口15个，早餐种类丰富，夜宵开放至21:30，支持移动支付，价格实惠。\n💡 贴士：离第三教学楼与体育馆近，运动后就餐方便，小吃分量足性价比高。` },
+          { id: 10, position: [102.740635, 25.071589], name: "清真食堂", type: "dining", desc: "清真特色食堂，菜品符合清真饮食标准", fullDesc: `📌 清真食堂【民族特色食堂】\n校内清真专属食堂，共2层，菜品严格遵循清真饮食标准，主打清真快餐、牛肉面、手抓饭、烤包子等。\n✅ 配套：菜品干净卫生，分量充足，价格亲民，兼顾民族饮食需求，支持校园卡与移动支付。\n💡 贴士：就餐人数适中，无需排队，离教学主楼近，课间就餐方便快捷。` },
+          { id: 11, position: [102.738256, 25.071236], name: "教工食堂", type: "dining", desc: "教职工食堂，菜品精致，环境安静", fullDesc: `📌 教工食堂【精致便捷食堂】\n校内教职工专属食堂，对外开放，共1层，菜品精致少油少盐，主打家常菜与营养餐，种类不多但品质高。\n✅ 配套：就餐环境安静，座位宽敞，早餐有包子豆浆油条，午餐晚餐为套餐形式，支持扫码支付。\n💡 贴士：人流量少无需排队，适合喜欢安静就餐的同学，价格略高于学生食堂。` },
+          { id: 12, position: [102.743567, 25.072148], name: "体育馆", type: "sports", desc: "综合体育场馆，含篮球、羽毛球、健身区", fullDesc: `📌 体育馆【综合体育中心】\n校内标准化体育场馆，分室内主馆与室外场地，承担体育教学、校队训练与校园文体活动。\n✅ 配套：室内篮球场2个、羽毛球场8个、乒乓球台12张、健身房与形体教室，室外塑胶跑道与排球场。\n💡 贴士：课余时间免费开放，器材可登记租借，周末人流量大建议错峰使用，禁止穿高跟鞋入场。` },
+          { id: 13, position: [102.741234, 25.071001], name: "实验楼", type: "laboratory", desc: "林业专业实验楼，配备完善科研实验设备", fullDesc: `📌 实验楼【林业科研基地】\n校内核心实验教学建筑，共8层，承担林学、园林、生物技术等专业实验课程与科研项目。\n✅ 配套：植物标本室、土壤检测室、林木育种室、生态监测室，每层有实验指导老师值班，设备先进。\n💡 贴士：进入需穿实验服，部分实验室需提前预约，严格遵守实验安全规范，器材禁止私自带出。` }
+        ]
+      }
+    };
+
+    class SmartCampusMap {
+      constructor() {
+        this.map = null;
+        this.AMap = null;
+        this.markers = [];
+        this.infoWindows = [];
+        this.routeLayers = [];
+        this.currentRouteType = 'drive';
+        this.startPoint = null;
+        this.startMarker = null;
+        this.normalIcon = null;
+        this.startIcon = null;
+        this.planIsOpen = false;
+        this.planTipsEl = document.getElementById('planTips');
+      }
+
+      async init() {
+        try {
+          this.AMap = await AMapLoader.load({
+            key: CONFIG.amapKey,
+            version: "2.0",
+            plugins: ['AMap.ToolBar', 'AMap.Scale', 'AMap.HawkEye', 'AMap.MapType','AMap.InfoWindow', 'AMap.Geolocation','AMap.Walking', 'AMap.Riding', 'AMap.Driving']
+          });
+
+          this.map = new this.AMap.Map("container", {
+            viewMode: '3D',
+            zoom: CONFIG.campus.zoom,
+            center: CONFIG.campus.center,
+            pitch: CONFIG.campus.pitch,
+            rotation: CONFIG.campus.rotation,
+            mapStyle: 'amap://styles/light'
+          });
+
+          this.initIcons();
+          this.addLayers();
+          this.addControls();
+          this.addMarkers();
+          this.updateSidebar();
+          this.hideLoading();
+          this.adjustView();
+          this.bindRouteEvents();
+          this.bindPlanSwitchEvent();
+        } catch (error) {
+          console.error('❌ 地图初始化失败:', error);
+          this.showError('地图加载失败，请刷新页面或检查网络连接');
+        }
+      }
+
+      initIcons() {
+        this.normalIcon = new this.AMap.Icon({ size: new this.AMap.Size(40, 48), image: "https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png", imageSize: new this.AMap.Size(40, 48), anchor: 'bottom-center' });
+        this.startIcon = new this.AMap.Icon({ size: new this.AMap.Size(46, 55), image: "https://webapi.amap.com/theme/v1.3/markers/n/mark_r.png", imageSize: new this.AMap.Size(46, 55), anchor: 'bottom-center' });
+      }
+
+      addLayers() {
+        this.map.add([new this.AMap.TileLayer.Traffic({ autoRefresh: true }),new this.AMap.Buildings({ heightFactor: 1.2 }),new this.AMap.TileLayer.Satellite(),new this.AMap.TileLayer.RoadNet()]);
+      }
+
+      addControls() {
+        this.map.addControl(new this.AMap.ToolBar({ position: 'RT' }));
+        this.map.addControl(new this.AMap.Scale({ position: 'LB' }));
+        this.map.addControl(new this.AMap.HawkEye({ isOpen: true, position: 'RB' }));
+        this.map.addControl(new this.AMap.MapType({ defaultType: 0, position: 'RT' }));
+        this.map.addControl(new this.AMap.Geolocation({ position: 'LB', showCircle: false }));
+      }
+
+      addMarkers() {
+        const { spots } = CONFIG.campus;
+        const _this = this;
+        const mainMarker = new this.AMap.Marker({ position: CONFIG.campus.center, icon: this.normalIcon, anchor: 'bottom-center', zIndex: 100 });
+        const mainInfoWindow = new this.AMap.InfoWindow({ content: this.getCampusInfoContent(), offset: new this.AMap.Pixel(0, -100), closeWhenClickMap: true });
+        mainMarker.on('click', function() { _this.closeAllInfoWindows(); mainInfoWindow.open(_this.map, CONFIG.campus.center); _this.infoWindows.push(mainInfoWindow); });
+        this.map.add(mainMarker);this.markers.push(mainMarker);
+
+        spots.forEach(spot => {
+          const marker = new this.AMap.Marker({ position: spot.position, icon: this.normalIcon, anchor: 'bottom-center', title: spot.name, extData: spot, zIndex: 90 });
+          const infoWindow = new this.AMap.InfoWindow({ content: this.getSpotInfoContent(spot), offset: new this.AMap.Pixel(0, -60), closeWhenClickMap: true });
+          marker.on('click', function() {
+            _this.closeAllInfoWindows();infoWindow.open(_this.map, spot.position);_this.infoWindows.push(infoWindow);_this.map.setCenter(spot.position);_this.map.setZoom(18);
+            if (_this.planIsOpen) {
+              if (_this.startPoint === null) {_this.startPoint = spot;_this.startMarker = marker;marker.setIcon(_this.startIcon);}
+              else if (_this.startPoint.id === spot.id) {_this.startPoint = null;marker.setIcon(_this.normalIcon);}
+              else {const endPoint = spot;_this.searchRoute(_this.startPoint.position, endPoint.position);_this.startMarker.setIcon(_this.normalIcon);_this.startPoint = null;_this.startMarker = null;}
+            }
+          });
+          this.map.add(marker);this.markers.push(marker);
+        });
+      }
+
+      getCampusInfoContent() {
+        return `<div style="width: 320px; padding: 15px;"><h3 style="color: #009688; margin: 0 0 10px 0; font-size: 16px;">${CONFIG.campus.name}</h3><p style="margin: 0; color: #666; line-height: 1.7; font-size: 14px; white-space: pre-line;">${CONFIG.campus.intro}<br/><br/>📍 校区特色：依山而建，原生林木覆盖率高，教学与生活设施完善，是集学习、科研、生活于一体的生态校园。<br/>📚 办学优势：林学、风景园林为国家级特色专业，拥有多个省级林业科研平台与实践基地。</p></div>`;
+      }
+
+      getSpotInfoContent(spot) {
+        return `<div style="width: 340px; padding: 15px; border-radius: 8px;"><h4 style="color: #009688; margin: 0 0 10px 0; font-size: 16px; font-weight: bold;">${spot.name}</h4><p style="margin: 0; color: #333; line-height: 1.7; font-size: 14px; white-space: pre-line;">${spot.fullDesc}</p><div style="margin-top:12px;font-size:12px;color:#888;text-align:right;">点击地图空白处关闭窗口</div></div>`;
+      }
+
+      closeAllInfoWindows() {this.infoWindows.forEach(window => window.close());this.infoWindows = [];}
+      updateSidebar() {
+        document.getElementById('campus-intro').textContent = CONFIG.campus.intro.replace(/\n/g, ' ');
+        document.getElementById('spot-list').innerHTML = CONFIG.campus.spots.map(spot => `<div class="spot-item" onclick="campusMap.flyToSpot(${spot.id})"><strong>${spot.name}</strong><p>${spot.desc.substring(0, 40)}...</p></div>`).join('');
+      }
+      flyToSpot(spotId) {const spot = CONFIG.campus.spots.find(s => s.id === spotId);if(spot){this.map.setCenter(spot.position);this.map.setZoom(18);const marker = this.markers.find(m => m.getExtData()?.id === spotId);marker && marker.emit('click');}}
+      adjustView() {if(this.markers.length>0)this.map.setFitView(this.markers, false, [80,80,80,80]);}
+      hideLoading() {document.getElementById('loading').style.display = 'none';}
+      showError(message) {document.getElementById('loading').innerHTML = `<div style="text-align:center;color:#f44336;"><div style="font-size:48px;margin-bottom:20px;">⚠️</div><h3>加载失败</h3><p>${message}</p><button onclick="location.reload()" style="margin-top:20px;padding:10px20px;background:#009688;color:white;border:none;border-radius:5px;cursor:pointer;">重新加载</button></div>`;}
+
+      bindPlanSwitchEvent() {
+        const _this = this;const switchBtn = document.getElementById('planSwitch');
+        switchBtn.addEventListener('click', function() {
+          if (_this.planIsOpen) {_this.planIsOpen=false;switchBtn.classList.remove('open');switchBtn.innerText='开启路径规划';_this.planTipsEl.innerHTML='✅ 路径规划功能已关闭 → 仅可查看地图点位信息，无路线规划功能';_this.clearRouteLayer();if(_this.startMarker)_this.startMarker.setIcon(_this.normalIcon);_this.startPoint=null;_this.startMarker=null;}
+          else {_this.planIsOpen=true;switchBtn.classList.add('open');switchBtn.innerText='关闭路径规划';_this.planTipsEl.innerHTML='🟢 路径规划功能已开启 → 点击地图上的点位，第一个为起点，第二个自动规划路线（PS：路径规划由于距离原因不是很完善）';}
+        });
+      }
+
+      bindRouteEvents() {
+        const _this = this;const btns = document.querySelectorAll('.route-btn');
+        btns.forEach(btn => {btn.addEventListener('click', (e) => {if(!_this.planIsOpen)return;btns.forEach(b=>b.classList.remove('active'));e.target.classList.add('active');_this.currentRouteType=e.target.dataset.type;if(_this.startPoint){const start=_this.startPoint.position;const currentCenter=_this.map.getCenter();_this.clearRouteLayer();_this.searchRoute(start,currentCenter);}})});
+        document.getElementById('clearRoute').addEventListener('click', () => {_this.clearRouteLayer();if(_this.startMarker)_this.startMarker.setIcon(_this.normalIcon);_this.startPoint=null;_this.startMarker=null;});
+      }
+
+      clearRouteLayer() {this.routeLayers.forEach(layer => this.map.remove(layer));this.routeLayers = [];}
+      searchRoute(start, end) {
+        this.clearRouteLayer();let planner = null;const _this = this;
+        switch (this.currentRouteType) {
+          case 'walk': planner = new this.AMap.Walking({map: this.map,policy: this.AMap.WalkingPolicy.LEAST_DISTANCE,avoidRoad: true,showTraffic: false});break;
+          case 'ride': planner = new this.AMap.Riding({map: this.map,policy: this.AMap.RidingPolicy.LEAST_TIME});break;
+          case 'drive': planner = new this.AMap.Driving({map: this.map,policy: this.AMap.DrivingPolicy.LEAST_TIME});break;
+        }
+        planner.search([{ location: start }, { location: end }], (status, result) => {
+          if (status === 'complete' && result.routes && result.routes.length > 0) {
+            const route = result.routes[0];let pathStyle = {};
+            if(_this.currentRouteType === 'walk'){
+                pathStyle = {path: route.path,strokeColor: _this.getRouteColor(),strokeWeight:6,strokeOpacity:0.9,strokeStyle:'solid',borderWeight:2,zIndex:999,lineJoin:'round',lineCap:'round',strokeDasharray:[]};
+            }else{
+                pathStyle = {path: route.path,strokeColor: _this.getRouteColor(),strokeWeight:8,strokeOpacity:0.85,strokeStyle:'solid',borderWeight:1,zIndex:999,lineJoin:'round',lineCap:'round'};
+            }
+            const path = new this.AMap.Polyline(pathStyle);_this.map.add(path);_this.routeLayers.push(path);_this.map.setFitView(_this.routeLayers.concat(_this.markers), false, [50,50,50,50]);_this.map.setZoom(18);
+          } else {
+            let failColor = "#ff6666";if(_this.currentRouteType === 'walk') failColor = "#009688";
+            const directLine = new this.AMap.Polyline({path: [start, end],strokeColor: failColor,strokeWeight: _this.currentRouteType === 'walk' ?5:6,strokeOpacity:0.7,strokeStyle:"dashed",zIndex:999,lineJoin:'round',lineCap:'round'});
+            _this.map.add(directLine);_this.routeLayers.push(directLine);_this.map.setFitView([start, end], false, [30,30,30,30]);
+          }
+        });
+      }
+      getRouteColor() {const colors={walk:'#009688',ride:'#1e88e5',drive:'#f44336'};return colors[this.currentRouteType]||'#009688';}
+    }
+
+    let campusMap;
+    document.addEventListener('DOMContentLoaded', () => {campusMap = new SmartCampusMap();campusMap.init();window.campusMap = campusMap;});
+    window.addEventListener('resize', () => {if(campusMap && campusMap.map)campusMap.map.setFitView(campusMap.markers, false, [80,80,80,80]);});
+  </script>
+</body>
+</html>
